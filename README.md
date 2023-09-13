@@ -29,4 +29,4 @@ npm start
 - [yamljs](https://www.npmjs.com/package/yamljs)
 - [swagger-ui-express](https://www.npmjs.com/package/swagger-ui-express)
 - [cypress](https://www.npmjs.com/package/cypress)]
-
+- [jest](https://www.npmjs.com/package/jest)
