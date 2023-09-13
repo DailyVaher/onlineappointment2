@@ -61,8 +61,6 @@ function tryToParseJson(jsonString) {
     }
     return false;
 }
-
-const delay = (ms) => new Promise(res => setTimeout(res, ms));
 app.post('/users', async (req, res) => {
 
     // Validate email and password
@@ -171,7 +169,7 @@ function authorizeRequest(req, res, next) {
 }
 
 app.get('/appointments', authorizeRequest, async (req, res) => {
-    await delay(1000)
+    // await delay(1000)
     // Get appointments for user
     const appointmentsForUser = appointments.filter(appointment => appointment.userId === req.user.id)
 
@@ -185,27 +183,34 @@ app.post('/appointments', authorizeRequest, (req, res) => {
     if (!req.body.title || !req.body.content) return res.status(400).send('Title and content are required')
 
     // Find max id
-    const maxId = appointments.reduce((max, appointment) => appointment.id > max ? appointment.id : max, appointments[0].id)
+    const maxId = appointments.reduce((max, appointment) => appointment.id > max ? appointment.id : max, 0)
 
-    // Save note to database
-    appointments.push({id: maxId + 1, title: req.body.title, content: req.body.content, userId: req.user.id})
+    // Save appointment to database
+    const appointment= ({id: maxId + 1, title: req.body.title, content: req.body.content, userId: req.user.id})
 
-    // Send note to client
+    appointments.push(appointment)
+
+    // Send appointment to client
+    expressWs.getWss().clients.forEach(client => client.send(JSON.stringify({event: 'create', appointment})));
+
     res.status(201).send(appointments[appointments.length - 1])
 
 })
 app.delete('/appointments/:id', authorizeRequest, (req, res) => {
 
     // Find appointment in database
-    const appointment = appointments.find(appointment => appointment.id === parseInt(req.params.id))
-    if (!appointment) return res.status(404).send('Appointment not found')
+    const appointmentIndex = appointments.findIndex(appointment => appointment.id === parseInt(req.params.id))
+    if (appointmentIndex === -1) return res.status(404).send('Appointment not found')
 
     // Check that the appointment belongs to the user
-    if (appointment.userId !== req.user.id) return res.status(401).send('Unauthorized')
+    if (appointments[appointmentIndex].userId !== req.user.id) return res.status(401).send('Unauthorized');
 
-    // Remove appointment from active database
-    appointment.splice(appointment.indexOf(appointment), 1)
-    expressWs.getWss().clients.forEach(client => client.send(appointment.id));
+    // Remove appointment from active appointments
+    appointments.splice(appointmentIndex, 1);
+
+    // Send appointment delete to client
+    expressWs.getWss().clients.forEach(client => client.send(JSON.stringify({event: 'delete', id: req.params.id})));
+
     res.status(204).end()
 })
 
@@ -224,7 +229,9 @@ app.put('/appointments/:id', authorizeRequest, (req, res) => {
     // Update appointment
     appointment.title = req.body.title
     appointment.content = req.body.content
-    expressWs.getWss().clients.forEach(client => client.send(appointment.id));
+
+    // Send updated appointment to client
+    expressWs.getWss().clients.forEach(client => client.send(JSON.stringify({event: 'update', appointment})));
 
     // Send appointment to client
     res.send(appointment)
