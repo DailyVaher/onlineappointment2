@@ -1,39 +1,54 @@
-name: Create Release
+name: Automatic Release Workflow
 
 on:
   push:
     branches:
-      - master
+      - main
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Set up Node.js
+      - name: Set up Node.js environment
         uses: actions/setup-node@v2
         with:
           node-version: '20'
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install Front-end Dependencies
+        run: |
+          cd front-end  # Change to your Vue.js front-end directory
+          npm install
 
-      - name: Run tests (optional)
-        run: npm test
+      - name: Build Front-end
+        run: |
+          cd front-end
+          npm run build
+
+      - name: Install Back-end Dependencies
+        run: |
+          cd back-end  # Change to your Express.js back-end directory
+          npm install
+
+      - name: Start Back-end (Optional)
+        run: |
+          cd back-end
+          npm start
 
       - name: Create Release
         id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          draft: false
-          prerelease: false
+        run: |
+          TAG_NAME=$(git rev-parse --short HEAD)
+          echo "Creating release $TAG_NAME"
+          curl -X POST "https://api.github.com/repos/${{ github.repository }}/releases" \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -d "{\"tag_name\":\"$TAG_NAME\",\"name\":\"Release $TAG_NAME\"}"
+          echo "::set-output name=tag::$TAG_NAME"
 
-      - name: Get the release URL
-        run: echo "Release URL is ${{ steps.create_release.outputs.html_url }}"
+      - name: Log Release URL
+        run: |
+          RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${{ steps.create_release.outputs.tag }}"
+          echo "Release URL: $RELEASE_URL"
